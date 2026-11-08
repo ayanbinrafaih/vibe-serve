@@ -32,6 +32,9 @@ export function startRunMessage(request: StartRunRequest): StartRun {
       ? {}
       : {maxTime: create(DurationSchema, {seconds: BigInt(request.maxTimeSeconds)})}),
     ...(request.maxCostUsd === null ? {} : {maxCostUsd: request.maxCostUsd}),
+    ...(request.summaryEverySeconds === null
+      ? {}
+      : {summaryEvery: create(DurationSchema, {seconds: BigInt(request.summaryEverySeconds)})}),
   });
 }
 

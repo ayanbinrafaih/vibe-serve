@@ -14,13 +14,14 @@ const request = (model: string): StartRunRequest => ({
   brief: 'No further steering.',
   maxTimeSeconds: 7200,
   maxCostUsd: 5,
+  summaryEverySeconds: 900,
   evalPlace: '',
 });
 
 const freshDaemon = () => new FakeDaemon(generateScenario({seed: 3, subagents: 1, live: true}));
 
 describe('the Start command', () => {
-  it.effect('sends the lead’s model and both bounds in the one command the host takes', () =>
+  it.effect('sends the lead’s model, both bounds and the report interval in the one command', () =>
     Effect.gen(function* () {
       const daemon = freshDaemon();
       const h = yield* hostHarness(daemon, {});
@@ -32,20 +33,27 @@ describe('the Start command', () => {
         lead: {harness: Harness.CODEX, model: 'model-a'},
         maxTime: {seconds: 7200n},
         maxCostUsd: 5,
+        summaryEvery: {seconds: 900n},
       });
     }),
   );
 
-  it.effect('leaves a bound out when it is none, so the host sets no limit', () =>
+  it.effect('leaves out a bound that is none and the host’s own report interval', () =>
     Effect.gen(function* () {
       const daemon = freshDaemon();
       const h = yield* hostHarness(daemon, {});
       yield* h.session.commands.submit(
-        startIntent({...request(''), maxTimeSeconds: null, maxCostUsd: null}),
+        startIntent({
+          ...request(''),
+          maxTimeSeconds: null,
+          maxCostUsd: null,
+          summaryEverySeconds: null,
+        }),
       );
       yield* h.elapse(5);
       expect(daemon.started[0]?.maxTime).toBeUndefined();
       expect(daemon.started[0]?.maxCostUsd).toBeUndefined();
+      expect(daemon.started[0]?.summaryEvery).toBeUndefined();
     }),
   );
 

@@ -1,3 +1,5 @@
+import {create} from '@bufbuild/protobuf';
+import {DurationSchema} from '@bufbuild/protobuf/wkt';
 import {createValidator} from '@bufbuild/protovalidate';
 import {Harness, StartRunSchema} from '@vibesys/orchestrator-proto';
 import fc from 'fast-check';
@@ -5,10 +7,12 @@ import {describe, expect, it} from 'vitest';
 import {startRunMessage} from './intents.js';
 import {
   FANOUT_CHOICES,
+  HOST_REPORT_MINUTES,
   LEAD_CHOICES,
   LEADS,
   missingFrom,
   NO_STEERING,
+  REPORT_INTERVALS,
   type StartDraft,
   startRunRequest,
   TIME_LIMITS,
@@ -37,6 +41,7 @@ const draft: fc.Arbitrary<StartDraft> = fc.record({
     fc.double({min: -10, max: 1000, noNaN: true}).map(String),
     fc.string(),
   ),
+  reportEvery: fc.constantFrom(...REPORT_INTERVALS),
   steering: fc.string(),
   evalPlace: fc.constantFrom('', 'host-a'),
 });
@@ -105,6 +110,7 @@ describe('the Start run form’s command', () => {
       model: '',
       timeLimit: null,
       costLimit: '',
+      reportEvery: null,
       steering: '',
       evalPlace: '',
     };
@@ -126,9 +132,55 @@ describe('the Start run form’s command', () => {
       model: '',
       timeLimit: null,
       costLimit: '',
+      reportEvery: null,
       steering: '',
       evalPlace: '',
     } satisfies StartDraft;
     expect(missingFrom(ok, blocked)).toBe('No allowed model.');
+  });
+});
+
+describe('the report interval', () => {
+  it('is left out for the host’s own, and otherwise sent in whole seconds the host takes', () => {
+    const validator = createValidator();
+    fc.assert(
+      fc.property(draft, value => {
+        if (missingFrom(value, NO_CATALOG) !== null) return;
+        const request = startRunRequest(value, NO_CATALOG);
+        const message = startRunMessage(request);
+        expect(validator.validate(StartRunSchema, message).kind).toBe('valid');
+        if (value.reportEvery === null) {
+          expect(request.summaryEverySeconds).toBeNull();
+          expect(message.summaryEvery).toBeUndefined();
+          return;
+        }
+        expect(request.summaryEverySeconds).toBe(value.reportEvery * 60);
+        expect(message.summaryEvery).toMatchObject({
+          seconds: BigInt(value.reportEvery * 60),
+          nanos: 0,
+        });
+      }),
+    );
+  });
+
+  it('offers only what the contract takes, shortest first, with the host’s own in its place', () => {
+    const validator = createValidator();
+    const every = (seconds: number) =>
+      validator.validate(
+        StartRunSchema,
+        create(StartRunSchema, {
+          repository: '/r',
+          task: 't',
+          lead: {harness: Harness.CODEX},
+          summaryEvery: create(DurationSchema, {seconds: BigInt(seconds)}),
+        }),
+      ).kind;
+    // The contract's least is five minutes, and it refuses zero rather than reading it as off.
+    expect([every(0), every(299), every(300)]).toEqual(['invalid', 'invalid', 'valid']);
+    for (const minutes of REPORT_INTERVALS) {
+      if (minutes !== null) expect(every(minutes * 60)).toBe('valid');
+    }
+    const inPlace = REPORT_INTERVALS.map(minutes => minutes ?? HOST_REPORT_MINUTES);
+    expect(inPlace).toEqual([...new Set(inPlace)].sort((a, b) => a - b));
   });
 });

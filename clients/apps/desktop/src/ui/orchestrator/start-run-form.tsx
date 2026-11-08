@@ -23,10 +23,12 @@ import {SetUpButton} from './setup/set-up-button.js';
 import {
   DEFAULT_FANOUT,
   FANOUT_CHOICES,
+  HOST_REPORT_MINUTES,
   LEAD_CHOICES,
   LEADS,
   type LeadChoice,
   missingFrom,
+  REPORT_INTERVALS,
   type StartDraft,
   type StartRunRequest,
   startRunRequest,
@@ -103,6 +105,33 @@ function LimitFields(props: {
         />
       </Field>
     </>
+  );
+}
+
+/** How often the lead reports while work moves: the host's hour unless set, never off. */
+function ReportField(props: {
+  readonly draft: StartDraft;
+  readonly set: (change: Partial<StartDraft>) => void;
+}): JSX.Element {
+  return (
+    <Field
+      label="Report every"
+      help="How often the lead is asked for a progress report while work moves."
+    >
+      <Select
+        value={String(props.draft.reportEvery)}
+        options={REPORT_INTERVALS.map(minutes => ({
+          value: String(minutes),
+          label:
+            minutes === null ? `${timeWord(HOST_REPORT_MINUTES)} (default)` : timeWord(minutes),
+        }))}
+        change={chosen =>
+          props.set({
+            reportEvery: REPORT_INTERVALS.find(minutes => String(minutes) === chosen) ?? null,
+          })
+        }
+      />
+    </Field>
   );
 }
 
@@ -359,6 +388,7 @@ export function StartRunForm(props: {
       )}
       <AgentFields draft={draft} set={set} choices={choices} model={model} />
       <LimitFields draft={draft} set={set} />
+      <ReportField draft={draft} set={set} />
       <Field label="Steering (optional)" help="Anything the lead should know or prefer.">
         <TextInput
           value={draft.steering}

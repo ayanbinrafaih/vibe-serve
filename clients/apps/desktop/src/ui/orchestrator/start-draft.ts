@@ -22,6 +22,17 @@ export const DEFAULT_FANOUT = 3;
 export const TIME_LIMITS = [null, 30, 60, 120, 240, 480, 1440] as const;
 type TimeLimit = (typeof TIME_LIMITS)[number];
 
+/** How often the host asks for a progress report when StartRun leaves `summary_every` out. */
+export const HOST_REPORT_MINUTES = 60;
+
+/**
+ * How often the lead can be asked for a progress report, in minutes, shortest first. Null leaves the
+ * command's `summary_every` out for the host's own interval, so it stands in that interval's place.
+ * The contract takes no interval under five minutes, and none is offered.
+ */
+export const REPORT_INTERVALS = [5, 15, 30, null, 120, 240, 480] as const;
+type ReportInterval = (typeof REPORT_INTERVALS)[number];
+
 /**
  * The daemon requires some brief, and the brief is steering on top of the task the lead already
  * gets. A run started with no steering says so in these words.
@@ -42,6 +53,8 @@ export interface StartDraft {
   readonly timeLimit: TimeLimit;
   /** The run's cost limit in dollars as typed, empty for none. */
   readonly costLimit: string;
+  /** How often the lead is asked for a progress report, in minutes; null for the host's hour. */
+  readonly reportEvery: ReportInterval;
   /** Optional steering for the lead, sent as the command's brief. */
   readonly steering: string;
   /** The eval place of a run in the person's own repository: the host's name for it, empty to let the host resolve. */
@@ -56,6 +69,7 @@ export const emptyDraft: StartDraft = {
   model: '',
   timeLimit: null,
   costLimit: '',
+  reportEvery: null,
   steering: '',
   evalPlace: '',
 };
@@ -71,6 +85,8 @@ export interface StartRunRequest {
   readonly maxTimeSeconds: number | null;
   /** The most the run may cost in dollars; null for no limit. */
   readonly maxCostUsd: number | null;
+  /** How often the lead is asked for a progress report, in seconds; null for the host's default. */
+  readonly summaryEverySeconds: number | null;
   /** The eval place, empty to let the host resolve it. */
   readonly evalPlace: string;
 }
@@ -111,6 +127,7 @@ export function startRunRequest(draft: StartDraft, models: ModelChoices): StartR
     brief: steering === '' ? NO_STEERING : steering,
     maxTimeSeconds: draft.timeLimit === null ? null : draft.timeLimit * 60,
     maxCostUsd: costOf(draft.costLimit),
+    summaryEverySeconds: draft.reportEvery === null ? null : draft.reportEvery * 60,
     evalPlace: draft.evalPlace,
   };
 }

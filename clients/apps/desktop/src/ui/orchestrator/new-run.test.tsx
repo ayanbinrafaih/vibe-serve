@@ -345,6 +345,32 @@ describe('the Start run form’s limits', () => {
   });
 });
 
+describe('the Start run form’s report interval', () => {
+  it('starts on the host’s hour unless an interval is chosen, and then carries it in seconds', () => {
+    const host = ready();
+    const every = fieldOf<HTMLSelectElement>(host.screen, 'Report every');
+    expect([...every.options].map(option => option.text)).toEqual([
+      '5 min',
+      '15 min',
+      '30 min',
+      '1 h (default)',
+      '2 h',
+      '4 h',
+      '8 h',
+    ]);
+    expect(every.selectedOptions[0]?.text).toBe('1 h (default)');
+    host.screen.press(host.screen.control('Start run'));
+    expect(host.started[0]?.request.summaryEverySeconds).toBeNull();
+    host.screen.unmount();
+
+    const chosen = ready();
+    choose(fieldOf<HTMLSelectElement>(chosen.screen, 'Report every'), '15');
+    chosen.screen.press(chosen.screen.control('Start run'));
+    expect(chosen.started[0]?.request.summaryEverySeconds).toBe(900);
+    chosen.screen.unmount();
+  });
+});
+
 describe('the Start run form’s refusal', () => {
   it('names the model the host refused and lists what it allows', () => {
     const receipt = create(ReceiptSchema, {
